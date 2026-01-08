@@ -19,6 +19,18 @@ DATA_FILE = "data/saved_games.json"
 def health():
     return {"status": "ok", "time": datetime.utcnow().isoformat()}
 
+@app.get("/db")
+def get_all_data():
+    path = "data/saved_games.json"
+    if not os.path.exists(path):
+        return {"message": "No data saved yet"}
+
+    with open(path, "r") as f:
+        content = json.load(f)
+    return content
+
+
+
 @app.post("/upload")
 async def upload(request: Request):
     new_game = await request.json()  # expects your JSON chunk
