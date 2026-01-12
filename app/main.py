@@ -4,9 +4,9 @@ import psycopg2
 from fastapi import FastAPI,HTTPException
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
-from sheets import read_all, write_all
-from db import read_db, apply_db_updates,mark_word_deleted
-from sync import resolve_conflicts,merge_back_to_sheet
+from app.sheets import read_all, write_all
+from app.db import read_db, apply_db_updates,mark_word_deleted
+from app.sync import resolve_conflicts,merge_back_to_sheet
 import pandas as pd
 
 app = FastAPI()
