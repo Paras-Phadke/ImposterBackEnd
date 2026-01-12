@@ -1,15 +1,20 @@
 import os
 import json
 import psycopg2
-from fastapi import FastAPI
+from fastapi import FastAPI,HTTPException
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
+from sheets import read_all, write_all
+from db import read_db, apply_db_updates,mark_word_deleted
+from sync import resolve_conflicts,merge_back_to_sheet
+import pandas as pd
 
 app = FastAPI()
 
 # ======== CONFIG ========
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
+SYNC_TOKEN = os.environ.get("SYNC_TOKEN")
 
 # ======== MODELS ========
 
@@ -92,3 +97,42 @@ def get_db():
             "game": r[3]
         } for r in rows
     ])
+
+@app.post("/sync")
+def sync(token: str):
+    if token != SYNC_TOKEN:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    # load states
+    sheet_cats, sheet_words = read_all()
+    db_cats, db_words = read_db()
+
+    # normalize types
+    for df in [sheet_cats, sheet_words, db_cats, db_words]:
+        if 'updated_at' in df:
+            df['updated_at'] = pd.to_datetime(df['updated_at'])
+
+    # resolve
+    cats_to_db, cats_to_sheet = resolve_conflicts(sheet_cats, db_cats)
+    words_to_db, words_to_sheet = resolve_conflicts(sheet_words, db_words)
+
+    # apply Sheets → DB updates
+    if len(cats_to_db) > 0 or len(words_to_db) > 0:
+        apply_db_updates(cats_to_db, words_to_db)
+
+    # apply soft deletes from Sheets → DB
+    for _, row in sheet_words.iterrows():
+        if row['deleted'] in ['TRUE', True]:
+            mark_word_deleted(int(row['id']))
+
+    # final read to incorporate DB updates before pushing to sheet
+    db_cats, db_words = read_db()
+
+    # apply DB → Sheets
+    sheet_cats = merge_back_to_sheet(sheet_cats, db_cats, cats_to_sheet)
+    sheet_words = merge_back_to_sheet(sheet_words, db_words, words_to_sheet)
+
+    # write to Sheets
+    write_all(sheet_cats, sheet_words)
+
+    return {"status": "synced"}
