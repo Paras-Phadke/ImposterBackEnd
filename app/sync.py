@@ -49,7 +49,7 @@ def merge_back_to_sheet(sheet_df, db_df, db_updates):
     db_df = db_df.set_index('id')
 
     # apply db updates into sheet_df
-    for _, row in db_updates.iterrows():
+    for _, row in db_updates.iterrows() :
         rid = row['id']
         sheet_df.loc[rid] = db_df.loc[rid]
 
