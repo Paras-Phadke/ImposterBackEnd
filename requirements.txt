@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 python-multipart
 psycopg2-binary
+pandas
 pydantic
 google-api-python-client
 google-auth
