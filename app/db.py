@@ -2,13 +2,10 @@ import psycopg2
 import pandas as pd
 import os
 
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
 def get_conn():
-    return psycopg2.connect(
-        host=os.getenv("dpg-d5fs3vdactks739s5jmg-a.singapore-postgres.render.com"),
-        database=os.getenv("imposterdb"),
-        user=os.getenv("imposterdb_user"),
-        password=os.getenv("SHptLjNvQ16KE1QrbhrzVZ0N6Ql2KUSz")
-    )
+    return psycopg2.connect(DATABASE_URL)
 
 def read_db():
     conn = get_conn()
