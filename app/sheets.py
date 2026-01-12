@@ -4,10 +4,13 @@ from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-SERVICE_ACCOUNT_FILE = os.getenv("SHEETS_SERVICE_ACCOUNT_FILE")
+SERVICE_ACCOUNT_FILE = os.environ.get("SHEETS_SERVICE_ACCOUNT_FILE")
 SPREADSHEET_ID = '1F6uiXWcidNNUnzkvw6-n7ASR8jtxMs2VxfhYx_OX0PA' 
 
 def get_service():
+    if not SERVICE_ACCOUNT_FILE:
+        raise Exception("SERVICE_ACCOUNT_FILE env var not set!")
+    
     creds = Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES
     )
