@@ -5,7 +5,7 @@ from fastapi import FastAPI,HTTPException
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from app.sheets import read_all, write_all
-from app.db import read_db, apply_db_updates,mark_word_deleted
+from app.db import read_db, apply_db_updates,mark_word_deleted,insert_new_categories,insert_new_words
 from app.sync import resolve_conflicts,merge_back_to_sheet
 import pandas as pd
 
@@ -103,36 +103,39 @@ def sync(token: str):
     if token != SYNC_TOKEN:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # load states
     sheet_cats, sheet_words = read_all()
     db_cats, db_words = read_db()
 
-    # normalize types
+    # normalize
     for df in [sheet_cats, sheet_words, db_cats, db_words]:
         if 'updated_at' in df:
             df['updated_at'] = pd.to_datetime(df['updated_at'])
 
-    # resolve
+    # NEW ROWS (no id) → DB
+    insert_new_categories(sheet_cats[sheet_cats['id'] == ''])
+    insert_new_words(sheet_words[sheet_words['id'] == ''])
+
+    # reload DB after inserts
+    db_cats, db_words = read_db()
+
+    # resolve conflicts
     cats_to_db, cats_to_sheet = resolve_conflicts(sheet_cats, db_cats)
     words_to_db, words_to_sheet = resolve_conflicts(sheet_words, db_words)
 
-    # apply Sheets → DB updates
-    if len(cats_to_db) > 0 or len(words_to_db) > 0:
-        apply_db_updates(cats_to_db, words_to_db)
+    apply_db_updates(cats_to_db, words_to_db)
 
-    # apply soft deletes from Sheets → DB
+    # deletions
     for _, row in sheet_words.iterrows():
         if row['deleted'] in ['TRUE', True]:
             mark_word_deleted(int(row['id']))
 
-    # final read to incorporate DB updates before pushing to sheet
+    # reload DB again
     db_cats, db_words = read_db()
 
-    # apply DB → Sheets
+    # merge back
     sheet_cats = merge_back_to_sheet(sheet_cats, db_cats, cats_to_sheet)
     sheet_words = merge_back_to_sheet(sheet_words, db_words, words_to_sheet)
 
-    # write to Sheets
     write_all(sheet_cats, sheet_words)
 
     return {"status": "synced"}
