@@ -48,6 +48,20 @@ def merge_back_to_sheet(sheet_df, db_df, db_updates):
     sheet_df = sheet_df.set_index('id')
     db_df = db_df.set_index('id')
 
+    if db_updates is None:
+        # create empty DataFrame with same columns as db_df (including 'id')
+        db_updates = pd.DataFrame(columns=db_df.reset_index().columns)
+    elif isinstance(db_updates, pd.DataFrame):
+        # already a DataFrame
+        pass
+    elif isinstance(db_updates, (list, tuple)):
+        db_updates = pd.DataFrame(db_updates)
+    elif isinstance(db_updates, dict):
+        db_updates = pd.DataFrame([db_updates])
+    else:
+        # attempt to coerce to DataFrame
+        db_updates = pd.DataFrame(db_updates)
+    
     # apply db updates into sheet_df
     for _, row in db_updates.iterrows() :
         rid = row['id']
