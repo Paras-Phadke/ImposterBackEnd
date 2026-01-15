@@ -49,27 +49,29 @@ def resolve_conflicts(sheet_df, db_df, key='id'):
 
 def merge_back_to_sheet(sheet_df, db_df, db_updates):
     sheet_df = sheet_df.copy()
+    db_df = db_df.copy()
+
     sheet_df['id'] = sheet_df['id'].replace('', pd.NA)
 
-    sheet_existing = sheet_df[sheet_df['id'].notna()].copy()
+    sheet_df = sheet_df[sheet_df['id'].notna()]
 
-    sheet_existing['id'] = sheet_existing['id'].astype(int)
+    sheet_df['id'] = sheet_df['id'].astype(int)
     db_df['id'] = db_df['id'].astype(int)
 
-    sheet_existing = sheet_existing.set_index('id')
+    sheet_df = sheet_df.set_index('id')
     db_df = db_df.set_index('id')
 
-    # apply DB updates
-    if isinstance(db_updates, pd.DataFrame):
+    # apply DB-updated rows
+    if isinstance(db_updates, pd.DataFrame) and not db_updates.empty:
         for _, row in db_updates.iterrows():
             rid = int(row['id'])
             if rid in db_df.index:
-                sheet_existing.loc[rid] = db_df.loc[rid]
+                sheet_df.loc[rid] = db_df.loc[rid]
 
-    # add missing DB rows
-    missing = db_df.index.difference(sheet_existing.index)
-    if len(missing) > 0:
-        sheet_existing = pd.concat([sheet_existing, db_df.loc[missing]])
+    # add any DB rows missing from sheet
+    missing_ids = db_df.index.difference(sheet_df.index)
+    if len(missing_ids) > 0:
+        sheet_df = pd.concat([sheet_df, db_df.loc[missing_ids]])
 
-    return sheet_existing.reset_index().sort_values('id')
+    return sheet_df.reset_index().sort_values('id')
 
