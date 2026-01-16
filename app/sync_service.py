@@ -92,15 +92,28 @@ def sync_table(sheet, table_name, columns):
                     conn.commit()
                     worksheet.update_cell(row_num, len(columns), str(datetime.now()))
 
-        # 4. Deletions
+        # 4. --Deletions--
         for db_id in db_map:
             if db_id not in sheet_ids_found:
                 if table_name == "words":
+                    logger.info(f"Soft-deleting word ID {db_id}")
                     cur.execute("UPDATE words SET deleted = TRUE WHERE id = %s", (db_id,))
                 else:
-                    cur.execute(f"DELETE FROM {table_name} WHERE id = %s", (db_id,))
+                    # Use 'as count' alias and verify fetchone result isn't None
+                    cur.execute("SELECT count(*) as count FROM words WHERE category_id = %s AND deleted = FALSE", (db_id,))
+                    result = cur.fetchone()
+                    
+                    # Safety check: if result is None, assume count is 0 to avoid crash
+                    count = result['count'] if result else 0
+                    
+                    if count > 0:
+                        logger.warning(f"Cannot delete category {db_id}: {count} active words still reference it.")
+                    else:
+                        logger.info(f"Hard-deleting empty category ID {db_id}")
+                        cur.execute(f"DELETE FROM {table_name} WHERE id = %s", (db_id,))
                 conn.commit()
 
+# ... (rest of the file remains the same)
         # 5. Appends (New in DB -> Sheet)
         cur.execute(query)
         rows_to_append = [[row[c] for c in columns] for row in cur.fetchall() if str(row['id']) not in sheet_ids_found]
@@ -115,7 +128,8 @@ def sync_table(sheet, table_name, columns):
 def run_sync(sheet_id):
     gc = get_google_sheet_client()
     sh = gc.open_by_key(sheet_id)
-    return {
-        "categories": sync_table(sh, "categories", ["id", "name", "updated_at"]),
-        "words": sync_table(sh, "words", ["id", "category_id", "word", "updated_at"])
-    }
+    
+    word_res = sync_table(sh, "words", ["id", "category_id", "word", "updated_at"])
+    cat_res = sync_table(sh, "categories", ["id", "name", "updated_at"])
+    
+    return {"categories": cat_res, "words": word_res}
