@@ -1,21 +1,23 @@
 import os
 import json
 import psycopg2
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
+from app.sync_service import run_sync
 
 app = FastAPI()
 
 # ======== CONFIG ========
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
+SHEET_ID = os.environ.get("GOOGLE_SHEET_ID") # Add this to your Render Env Vars
 
 # ======== MODELS ========
 
 class UploadPayload(BaseModel):
     user_id: str
-    games: dict   # your dict keyed by game number
+    games: dict
 
 # ======== DB INIT ========
 
@@ -23,6 +25,7 @@ def init_db():
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
 
+    # Original Tables
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
@@ -37,6 +40,25 @@ def init_db():
             game_json JSONB,
             created_at TIMESTAMP DEFAULT NOW(),
             FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+    """)
+
+    # --- NEW TABLES (Requested) ---
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS categories (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS words (
+            id SERIAL PRIMARY KEY,
+            category_id INTEGER REFERENCES categories(id),
+            word TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            deleted BOOLEAN DEFAULT FALSE
         );
     """)
 
@@ -59,7 +81,6 @@ def upload_data(payload: UploadPayload):
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
 
-    # ensure user exists
     cur.execute(
         "INSERT INTO users(id) VALUES (%s) ON CONFLICT DO NOTHING",
         (user_id,)
@@ -92,3 +113,15 @@ def get_db():
             "game": r[3]
         } for r in rows
     ])
+
+# --- NEW SYNC ROUTE ---
+@app.post("/sync-sheets")
+def trigger_sync():
+    if not SHEET_ID:
+        raise HTTPException(status_code=500, detail="GOOGLE_SHEET_ID env var not set")
+    
+    try:
+        result = run_sync(SHEET_ID)
+        return {"status": "success", "details": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
