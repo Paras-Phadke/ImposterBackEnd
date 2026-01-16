@@ -122,6 +122,15 @@ def sync(token: str):
     cats_to_db, cats_to_sheet = resolve_conflicts(sheet_cats, db_cats)
     words_to_db, words_to_sheet = resolve_conflicts(sheet_words, db_words)
 
+    now = pd.Timestamp.utcnow()
+
+    if not cats_to_db.empty:
+        cats_to_db['updated_at'] = now
+
+    if not words_to_db.empty:
+        words_to_db['updated_at'] = now
+
+
     apply_db_updates(cats_to_db, words_to_db)
 
     # deletions

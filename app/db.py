@@ -29,8 +29,8 @@ def insert_new_categories(df):
 
     for _, row in df.iterrows():
         cur.execute("""
-            INSERT INTO categories (name)
-            VALUES (%s)
+            INSERT INTO categories (name, updated_at)
+            VALUES (%s, now())
             ON CONFLICT DO NOTHING
         """, (row['name'],))
 
@@ -48,8 +48,8 @@ def insert_new_words(df):
 
     for _, row in df.iterrows():
         cur.execute("""
-            INSERT INTO words (category_id, word, clue, deleted)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO words (category_id, word, clue, deleted, updated_at)
+            VALUES (%s, %s, %s, %s, now())
         """, (
             row['category_id'],
             row['word'],
