@@ -4,7 +4,7 @@ import psycopg2
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
-from app.sync_service import run_sync
+
 
 app = FastAPI()
 
@@ -113,15 +113,3 @@ def get_db():
             "game": r[3]
         } for r in rows
     ])
-
-# --- NEW SYNC ROUTE ---
-@app.post("/sync-sheets")
-def trigger_sync():
-    if not SHEET_ID:
-        raise HTTPException(status_code=500, detail="GOOGLE_SHEET_ID env var not set")
-    
-    try:
-        result = run_sync(SHEET_ID)
-        return {"status": "success", "details": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
